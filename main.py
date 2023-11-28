@@ -1,11 +1,13 @@
 # Goal: iterate a list of endpoints, and validate their block heights have increased more since the last run
 
 import json
+import multiprocessing
 import os
-from typing import List
+from typing import List, Tuple
 
 from httpx import get
 
+from helpers import Endpoint
 from notifications import discord_notification
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -13,99 +15,177 @@ curr_dir = os.path.dirname(os.path.realpath(__file__))
 with open(os.path.join(curr_dir, "config.json"), "r") as f:
     config = json.load(f)
 
+
+# Load configuration
 webhook = config["discord_webhook"]
-endpoints: dict[str, str] = dict(config["chains"])
 error_picture = config["error_picture"]
 
+endpoints: dict[str, Endpoint] = {}
 
-def load_last() -> dict:
-    if os.path.exists(f"{curr_dir}/saves.json"):
-        with open(f"{curr_dir}/saves.json", "r") as f:
-            last_run = json.load(f)
-    else:
-        print("No saves.json found!")
-        last_run = {}
-
-    return last_run
+cfg_chains: dict = config["chains"]
+for endpoint in cfg_chains:
+    o: dict = cfg_chains[endpoint]
+    e = Endpoint(
+        name=endpoint,
+        nodes=o["nodes"],
+        references=o["references"],
+        allowed_block_sway=o.get("allowed_block_sway", 5),
+    )
+    endpoints[e.name] = e
 
 
 def main():
-    # set all endpoints to 0 height
-    recentCheck = {e: 0 for e in endpoints.keys()}
+    task = []
+    for name, obj in endpoints.items():
+        our_urls = obj.nodes
+        references = obj.references
+        block_sway = obj.allowed_block_sway
+        task.append((our_urls, references, name, block_sway))
 
-    # load most recent run
-    last_run = load_last()
+    with multiprocessing.Pool() as p:
+        p.starmap(check_nodes, task)
 
-    # iterate our endpoints and value the blocks are increasing
-    for endpoint in endpoints:
-        name = endpoint
-        url = endpoints[endpoint]
 
-        try:
-            response = get(f"{url}/abci_info", timeout=10)
-        except Exception as e:
-            print(f"{endpoint} is down for get exception")
-            discord_notification(
-                url=webhook,
-                title=f"Node Down - {name}",
-                description=f"Node is down",
-                color="ff0000",
-                values={
-                    "status": [f"{e=}", True],
-                },
-                imageLink=error_picture,
-                footerText="",
-            )
-            continue
+def notify(
+    url: str,
+    values: dict[str, Tuple[str, bool]],
+    title: str = f" ",
+    desc: str = f"",
+):
+    if len(title) == 0:
+        title = f"Node is down: {url}"
 
-        # non success status code :(
-        if response.status_code != 200:
-            print(f"{endpoint} is down. {response.status_code=}")
-            discord_notification(
-                url=webhook,
-                title=f"Node Down - {name}",
-                description=f"Node is down",
-                color="ff0000",
-                values={
-                    "status": [f"{response.status_code=}", True],
-                },
-                imageLink=error_picture,
-                footerText="",
-            )
-            continue
+    if len(desc) == 0:
+        desc = f"Node is down"
 
-        # success, get block height
-        j = response.json()
-        last_height = (
-            dict(j).get("result", {}).get("response", {}).get("last_block_height", 0)
+    discord_notification(
+        url=webhook,
+        title=title,
+        description=desc,
+        color="ff0000",
+        values=values,
+        imageLink=error_picture,
+        footerText="",
+    )
+
+
+def get_height(name: str, url: str) -> int | None:
+    try:
+        response = get(f"{url}/abci_info", timeout=10)
+    except Exception as e:
+        print(f"{endpoint} is down for get exception")
+        notify(
+            url=url,
+            values={
+                "status": [f"{e=}", True],
+                "name": [f"{name}", True],
+            },
         )
-        recentCheck[endpoint] = last_height
+        return None
 
-        # !: cache may fall behind and the caught up RPC value is used instead. Wonder how this will work
-        # if endpoint is in last_run, check if last_height is greater than last_run[endpoint]
-        if endpoint in last_run:
-            if last_height > last_run[endpoint]:
-                print(
-                    f"{endpoint} has increased by {int(last_height) - int(last_run[endpoint])} blocks since last run"
-                )
-            else:
-                print(f"{endpoint} has not increased since last run")
-                discord_notification(
-                    url=webhook,
-                    title=f"Node Down - {name}",
-                    description=f"Node is down",
-                    color="ff0000",
-                    values={
-                        "last_height": [f"{last_height}", True],
-                    },
-                    imageLink=error_picture,
-                    footerText="",
-                )
+    # non success status code :(
+    if response.status_code != 200:
+        print(f"{endpoint} is down. {response.status_code=}")
+        notify(
+            url=url,
+            title=f"Bad Status Code for {name}",
+            values={
+                "status": [f"{response.status_code=}", True],
+                "url": [f"{url}", True],
+            },
+        )
+        return None
 
-    # dump recentCheck to curr_dir / saves.json
-    with open(f"{curr_dir}/saves.json", "w") as f:
-        print(f"Dumping recentCheck to saves.json. {recentCheck=}")
-        json.dump(recentCheck, f, indent=4)
+    j = response.json()
+    last_height = (
+        dict(j).get("result", {}).get("response", {}).get("last_block_height", 0)
+    )
+
+    # convert last_height to int
+    try:
+        last_height = int(last_height)
+    except Exception as e:
+        print(f"{endpoint} is down for int exception")
+        notify(
+            url=url,
+            title=f"Bad JSON Resp parsing for {name}",
+            desc="ERROR!!!",
+            values={
+                "url": [f"{url}", True],
+                "status": [f"{e}", True],
+                "json": [f"{j}", True],
+            },
+        )
+        return None
+
+    return last_height
+
+
+def get_reference_height(name: str, reference_urls: List[str]) -> int:
+    reference_height = 0
+
+    for url in reference_urls:
+        height = get_height(name, url)
+
+        if height is None:
+            print(f"reference: {url} is down, next")
+            continue
+
+        if height > reference_height:
+            reference_height = height
+
+    return reference_height
+
+
+def get_our_heights(name: str, nodes: List[str]) -> dict[str, int]:
+    heights: dict[str, int] = {}
+
+    for url in nodes:
+        height = get_height(name, url)
+
+        if height is None:
+            print(f"{url} is down, next")
+            continue
+
+        heights[url] = height
+
+    return heights
+
+
+def check_nodes(our_urls: List[str], references: List[str], name: str, block_sway: int):
+    # url -> height
+    reference_height = get_reference_height(name, references)
+    heights = get_our_heights(name, our_urls)
+
+    print(f"{name} {heights=}, {reference_height=}")
+
+    # if reference_height is 0, we compare within our own nodes for highest height
+    if reference_height == 0:
+        reference_height = max(heights.values())
+        if reference_height == 0:
+            print(f"{name} reference_height is 0, something is wrong")
+            notify(
+                url=name,
+                title=f"{name} reference_height is 0",
+                desc=f"ERROR!!!",
+                values={
+                    "ref: ": [f"no reference >0...", True],
+                },
+            )
+            exit(1)
+
+    # iterate our heights and compare to reference
+    for url, height in heights.items():
+        if reference_height - height >= block_sway:
+            notify(
+                url=url,
+                title=f"{name} node is out of sync: {url}",
+                desc=f"Blocks: {reference_height-height:,}",
+                values={
+                    "last_height": [f"{height:,}", True],
+                    "reference_height": [f"{reference_height:,}", True],
+                },
+            )
 
 
 if __name__ == "__main__":

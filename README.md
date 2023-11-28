@@ -13,7 +13,7 @@ sudo pip install -r requirements.txt  --break-system-packages
 
 ```bash
 
-# edit .env with your discord webhook url
-cp .env.example .env
+# edit with your discord webhook url & servers to monitor & compare against
+cp config.example.json config.json
 
 ```

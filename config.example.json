@@ -1,0 +1,18 @@
+{
+    "discord_webhook": "https://discord.com/api/webhooks/00000/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "error_picture": "https://previews.123rf.com/images/ratoca/ratoca1109/ratoca110900102/10584698-notice-of-existence-of-error.jpg",
+    "chains": {
+        "Stargaze": {
+            "nodes": ["https://stargaze-rpc.reece.sh:443", "http://127.0.0.1:33229"],
+            "references": ["https://rpc.stargaze-apis.com:443", "https://stargaze-rpc.polkachu.com"]
+        },
+        "Juno": {
+            "nodes": ["https://juno-rpc.reece.sh:443", "http://127.0.0.1:31229"],
+            "references": ["https://juno-rpc.w3coins.io", "https://rpc-juno.ecostake.com", "https://juno-rpc.polkachu.com"]
+        },
+        "Osmosis": {
+            "nodes": ["https://osmosis-rpc.reece.sh:443", "http://127.0.0.1:32229"],
+            "references": ["https://rpc.osmosis.zone", "https://rpc-osmosis.blockapsis.com", "https://osmosis-rpc.polkachu.com"]
+        }
+    }
+}

@@ -15,8 +15,13 @@ Discord notifications if there are errors:
 ## Installation
 
 ```bash
-pip install -r requirements.txt  --break-system-packages
-sudo pip install -r requirements.txt  --break-system-packages
+
+# Ubuntu
+# sudo apt-get install python3-pip
+
+# --break-system-packages is required on newer python versions if not using a python env
+pip3 install -r requirements.txt --break-system-packages
+sudo pip3 install -r requirements.txt --break-system-packages
 ```
 
 ## Usage
@@ -28,6 +33,6 @@ cp config.example.json config.json
 
 # crontab -e
 # Every 15 minutes:
-# */15 * * * * python3 /root/cosmos-node-monitor/main.py
+# */15 * * * * /usr/bin/python3 /root/cosmos-node-monitor/main.py
 
 ```

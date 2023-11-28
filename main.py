@@ -29,7 +29,7 @@ for endpoint in cfg_chains:
         name=endpoint,
         nodes=o["nodes"],
         references=o["references"],
-        allowed_block_sway=o.get("allowed_block_sway", 5),
+        allowed_block_drift=o.get("allowed_block_drift", 5),
     )
     endpoints[e.name] = e
 
@@ -39,8 +39,8 @@ def main():
     for name, obj in endpoints.items():
         our_urls = obj.nodes
         references = obj.references
-        block_sway = obj.allowed_block_sway
-        task.append((our_urls, references, name, block_sway))
+        drift = obj.allowed_block_drift
+        task.append((our_urls, references, name, drift))
 
     with multiprocessing.Pool() as p:
         p.starmap(check_nodes, task)
@@ -152,7 +152,9 @@ def get_our_heights(name: str, nodes: List[str]) -> dict[str, int]:
     return heights
 
 
-def check_nodes(our_urls: List[str], references: List[str], name: str, block_sway: int):
+def check_nodes(
+    our_urls: List[str], references: List[str], name: str, block_drift: int
+):
     # url -> height
     reference_height = get_reference_height(name, references)
     heights = get_our_heights(name, our_urls)
@@ -176,7 +178,7 @@ def check_nodes(our_urls: List[str], references: List[str], name: str, block_swa
 
     # iterate our heights and compare to reference
     for url, height in heights.items():
-        if reference_height - height >= block_sway:
+        if reference_height - height >= block_drift:
             notify(
                 url=url,
                 title=f"{name} node is out of sync: {url}",

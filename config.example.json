@@ -4,7 +4,8 @@
     "chains": {
         "Stargaze": {
             "nodes": ["https://stargaze-rpc.reece.sh:443", "http://127.0.0.1:33229"],
-            "references": ["https://rpc.stargaze-apis.com:443", "https://stargaze-rpc.polkachu.com"]
+            "references": ["https://rpc.stargaze-apis.com:443", "https://stargaze-rpc.polkachu.com"],
+            "allowed_block_drift": 3
         },
         "Juno": {
             "nodes": ["https://juno-rpc.reece.sh:443", "http://127.0.0.1:31229"],
@@ -12,7 +13,8 @@
         },
         "Osmosis": {
             "nodes": ["https://osmosis-rpc.reece.sh:443", "http://127.0.0.1:32229"],
-            "references": ["https://rpc.osmosis.zone", "https://rpc-osmosis.blockapsis.com", "https://osmosis-rpc.polkachu.com"]
+            "references": ["https://rpc.osmosis.zone", "https://rpc-osmosis.blockapsis.com", "https://osmosis-rpc.polkachu.com"],
+            "allowed_block_drift": 3
         }
     }
 }

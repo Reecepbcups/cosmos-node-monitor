@@ -5,9 +5,8 @@ import multiprocessing
 import os
 from typing import List, Tuple
 
-from httpx import get
-
 from helpers import Endpoint
+from httpx import get
 from notifications import discord_notification
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -71,7 +70,7 @@ def notify(
 
 def get_height(name: str, url: str) -> int | None:
     try:
-        response = get(f"{url}/abci_info", timeout=10)
+        response = get(f"{url}/abci_info", timeout=15)
     except Exception as e:
         print(f"{endpoint} is down for get exception")
         notify(
@@ -79,6 +78,7 @@ def get_height(name: str, url: str) -> int | None:
             values={
                 "status": [f"{e=}", True],
                 "name": [f"{name}", True],
+                "url": [f"{url}", True],
             },
         )
         return None

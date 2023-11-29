@@ -68,11 +68,14 @@ def notify(
     )
 
 
-def get_height(name: str, url: str) -> int | None:
+def get_height(name: str, url: str, ignore_down_err: bool = False) -> int | None:
     try:
-        response = get(f"{url}/abci_info", timeout=15)
+        response = get(f"{url}/abci_info", timeout=25)
     except Exception as e:
         print(f"{endpoint} is down for get exception")
+        if ignore_down_err:
+            return None
+
         notify(
             url=url,
             values={
@@ -125,7 +128,8 @@ def get_reference_height(name: str, reference_urls: List[str]) -> int:
     reference_height = 0
 
     for url in reference_urls:
-        height = get_height(name, url)
+        # ignore if a ref node is down, does not matter.
+        height = get_height(name, url, ignore_down_err=True)
 
         if height is None:
             print(f"reference: {url} is down, next")
